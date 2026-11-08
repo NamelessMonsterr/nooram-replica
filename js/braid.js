@@ -183,5 +183,13 @@ function frame(dt) {
 if (reduced) {
   frame(0.016);
 } else {
-  renderer.setAnimationLoop(() => frame(Math.min(clock.getDelta(), 0.05)));
+  const loop = () => frame(Math.min(clock.getDelta(), 0.05));
+  let running = false, inView = false;
+  const sync = () => {
+    const should = inView && !document.hidden;
+    if (should && !running) { clock.getDelta(); renderer.setAnimationLoop(loop); running = true; }
+    else if (!should && running) { renderer.setAnimationLoop(null); running = false; }
+  };
+  new IntersectionObserver((es) => { inView = es[0].isIntersecting; sync(); }, { rootMargin: "80px" }).observe(stage);
+  document.addEventListener("visibilitychange", sync);
 }

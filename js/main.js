@@ -167,10 +167,12 @@
   // Pauses briefly on any user interaction, and fully while shouldStop() is true.
   function drift(el, speed, shouldStop) {
     if (reduced || !el) return { stop() {}, hold() {} };
-    let dir = 1, pauseUntil = 0, dead = false, raf = 0, pos = el.scrollLeft;
+    let dir = 1, pauseUntil = 0, dead = false, raf = 0, pos = el.scrollLeft, inView = true;
+    new IntersectionObserver((es) => { inView = es[0].isIntersecting; }, { rootMargin: "60px" }).observe(el);
     const max = () => el.scrollWidth - el.clientWidth;
     const tick = (ts) => {
       if (dead) return;
+      if (!inView) { raf = requestAnimationFrame(tick); return; } // no layout work while offscreen
       // resync if the user or a script moved the rail externally
       if (Math.abs(el.scrollLeft - pos) > 3) pos = el.scrollLeft;
       if (ts >= pauseUntil && max() > 4 && !(shouldStop && shouldStop())) {
@@ -876,7 +878,8 @@
     const lines = Array.from({ length: 5 }, (_, i) => ({
       y: 0.12 + i * 0.19, amp: 20 + i * 14, speed: 0.25 + i * 0.08, hue: i % 2 ? "rgba(122,20,36,.20)" : "rgba(224,169,44,.22)",
     }));
-    (function draw() {
+    let threadsInView = false, threadsRaf = 0;
+    function draw() {
       t += 0.008;
       ctx.clearRect(0, 0, w, h);
       lines.forEach((L, li) => {
@@ -889,8 +892,16 @@
         }
         ctx.stroke();
       });
-      requestAnimationFrame(draw);
-    })();
+      threadsRaf = threadsInView && !document.hidden ? requestAnimationFrame(draw) : 0;
+    }
+    new IntersectionObserver((es) => {
+      threadsInView = es[0].isIntersecting;
+      if (threadsInView && !threadsRaf && !document.hidden) threadsRaf = requestAnimationFrame(draw);
+    }, { rootMargin: "60px" }).observe(cv);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden && threadsRaf) { cancelAnimationFrame(threadsRaf); threadsRaf = 0; }
+      else if (!document.hidden && threadsInView && !threadsRaf) threadsRaf = requestAnimationFrame(draw);
+    });
   })();
 
   /* ============================ NEWSLETTER ============================ */
