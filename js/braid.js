@@ -31,6 +31,8 @@ let strands = [];
 let grow = 0;
 const clock = new THREE.Clock();
 let phase = 0;
+let flow = 0; // traveling-wave clock, advanced each frame
+const flowUniform = { value: 0 };
 
 const LEN = 17.5;          // spine length - long enough to bleed off both edges
 const RADIUS = 0.85;       // strand orbit radius around spine
@@ -39,19 +41,15 @@ const THICK = 0.05;        // ribbon thickness (thin)
 const TURNS = 1.45;        // braid twists along the spine - long lazy pitch, not corkscrew
 const SAMPLES = 240;
 
-// Center of strand i at parameter t in [0,1]
-let flow = 0; // traveling-wave clock, advanced each frame
+// Center of strand i at parameter t in [0,1]. The traveling wave itself lives
+// in the vertex shader (uFlow) so the CPU never rebuilds geometry.
 function strandCenter(t, i, n, out) {
   const x = (t - 0.5) * LEN;
   const angle = t * TURNS * Math.PI * 2 + (i * Math.PI * 2) / Math.max(n, 1);
   const r = n === 1 ? 0 : RADIUS;
-  // broad traveling wave sweeping the full width, like silk pulled through air
-  const env = 0.45 + Math.sin(t * Math.PI) * 0.55; // a little calmer at the very ends
-  const waveY = Math.sin(t * Math.PI * 2 * 1.05 - flow * 1.15 + i * 0.6) * 0.85 * env;
-  const waveZ = Math.cos(t * Math.PI * 2 * 0.9 - flow * 1.15 + i * 0.6) * 0.55 * env;
   // gentle drape: middle of the braid sags, ends lift slightly
   const sag = -Math.sin(t * Math.PI) * 0.35;
-  out.set(x, Math.cos(angle) * r + sag + waveY, Math.sin(angle) * r + waveZ);
+  out.set(x, Math.cos(angle) * r + sag, Math.sin(angle) * r);
   return angle;
 }
 
@@ -127,6 +125,21 @@ function buildBraid(textures) {
     const mat = new THREE.MeshStandardMaterial({
       map: tex, roughness: 0.62, metalness: 0.1, side: THREE.DoubleSide,
     });
+    // broad traveling wave sweeping the full width, like silk pulled through
+    // air - displaced on the GPU so the flow costs no per-frame CPU work
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uFlow = flowUniform;
+      shader.uniforms.uPhase = { value: i * 0.6 };
+      shader.uniforms.uLen = { value: LEN };
+      shader.vertexShader = "uniform float uFlow;\nuniform float uPhase;\nuniform float uLen;\n" + shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `vec3 transformed = vec3(position);
+         float wt = position.x / uLen + 0.5;
+         float wenv = 0.45 + sin(wt * 3.14159265) * 0.55;
+         transformed.y += sin(wt * 6.2831853 * 1.05 - uFlow * 1.15 + uPhase) * 0.85 * wenv;
+         transformed.z += cos(wt * 6.2831853 * 0.9 - uFlow * 1.15 + uPhase) * 0.55 * wenv;`
+      );
+    };
     const mesh = new THREE.Mesh(geo, mat);
     mesh.scale.setScalar(0.001);
     group.add(mesh);
@@ -152,16 +165,13 @@ resize();
 function frame(dt) {
   phase += dt * 0.5;
   flow += dt; // advances the traveling wave through the ribbons
+  flowUniform.value = flow;
   grow = Math.min(grow + dt * 0.85, 1);
   const ease = 1 - Math.pow(1 - grow, 3);
   strands.forEach((m, i) => {
     m.scale.setScalar(Math.max(0.001, Math.min(1, ease * 1.25 - i * 0.14)));
     // slow flow of the weave along each band, like fabric being pulled through
     if (m.material.map) m.material.map.offset.x -= dt * 0.045;
-    // re-shape the ribbon around the moving wave so the whole braid flows
-    const old = m.geometry;
-    m.geometry = ribbonGeometry(i, strands.length);
-    old.dispose();
   });
   group.rotation.y = Math.sin(phase * 0.45) * 0.14;
   group.rotation.x = 0.08 + Math.sin(phase * 0.32) * 0.04;
