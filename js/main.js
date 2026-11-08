@@ -499,24 +499,41 @@
       b.setAttribute("role", "tab");
       b.innerHTML = `${c} <small>${String(n).padStart(2, "0")}</small>`;
       b.addEventListener("click", () => {
+        if (swapping || c === cat) return;
         cat = c;
         $$(".chip", filtersEl).forEach((x) => x.classList.toggle("is-on", x === b));
-        items = cat === "All pieces" ? RACK.slice() : RACK.filter((r) => r.cat.includes(c));
-        idx = Math.min(1, items.length - 1);
-        buildEls();
-        layout();
+        swapping = true;
+        rail.classList.add("swap-out"); // current rail slides off left
+        setTimeout(() => {
+          items = cat === "All pieces" ? RACK.slice() : RACK.filter((r) => r.cat.includes(c));
+          idx = Math.min(1, items.length - 1);
+          pos = idx;
+          buildEls();
+          layout();
+          updateDetail(); // idx may be unchanged numerically while the item set changed
+          rail.style.transition = "none";
+          rail.classList.remove("swap-out");
+          rail.classList.add("swap-in"); // park the new rail right of the stage
+          void rail.offsetWidth;
+          rail.style.transition = "";
+          requestAnimationFrame(() => requestAnimationFrame(() => {
+            rail.classList.remove("swap-in"); // and it slides in
+            swapping = false;
+          }));
+        }, reduced ? 0 : 300);
       });
       filtersEl.appendChild(b);
     });
 
-    let els = [];
+    let els = [], pos = 1, swapping = false;
+    const clampPos = (p) => Math.max(-0.6, Math.min(items.length - 0.4, p));
     function buildEls() {
       rail.innerHTML = "";
       els = items.map((r, i) => {
         const d = document.createElement("div");
         d.className = "rack-item";
-        d.innerHTML = `<span class="rack-hanger" aria-hidden="true"><i class="rack-hook"></i><i class="rack-hangerbar"></i></span><img src="${r.img}" alt="${r.name}">`;
-        d.addEventListener("click", () => { idx = i; layout(); });
+        d.innerHTML = `<span class="rack-hanger" aria-hidden="true"><i class="rack-hook"></i><i class="rack-hangerbar"></i></span><img src="${r.img}" alt="${r.name}" draggable="false">`;
+        d.addEventListener("click", () => { if (dragged) return; pos = i; layout(); });
         rail.appendChild(d);
         return d;
       });
@@ -525,24 +542,62 @@
       items.forEach((r, i) => {
         const d = els[i];
         if (!d) return;
-        const off = i - idx;
+        const off = i - pos; // float offset: the rail slides continuously under the focus
         const abs = Math.abs(off);
-        let t = `translateX(${off * 165}px) translateY(${abs * 10}px) rotate(${off * 2.2}deg) scale(${Math.max(1 - abs * 0.14, 0.55)})`;
+        let t = `translateX(${off * 165}px) translateY(${abs * 8}px) rotate(${off * 2.2}deg) scale(${Math.max(1.07 - abs * 0.14, 0.55)})`;
         if (!viewFront && i === idx) t += " scaleX(-1)";
         d.style.transform = t;
-        d.style.filter = `blur(${Math.min(abs * 2.6, 9)}px)${r.hue ? ` hue-rotate(${r.hue}deg)` : ""}`;
+        d.style.filter = `blur(${Math.min(abs * 2.4, 8)}px)${r.hue ? ` hue-rotate(${r.hue}deg)` : ""}`;
         d.style.opacity = abs > 4 ? 0 : 1 - abs * 0.12;
-        d.style.zIndex = 100 - abs;
+        d.style.zIndex = 100 - Math.round(abs);
         d.querySelector("img").loading = abs > 2 ? "lazy" : "eager";
       });
+      const ni = Math.max(0, Math.min(items.length - 1, Math.round(pos)));
+      if (ni !== idx) { idx = ni; updateDetail(); }
+    }
+    function updateDetail() {
       const cur = items[idx];
-      if (cur) {
-        nameEl.textContent = cur.name;
-        priceEl.textContent = inr(cur.price) + ".00";
-        if (window.gsap && !reduced) gsap.fromTo([nameEl, priceEl], { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: "power2.out", clearProps: "all" });
-      }
+      if (!cur) return;
+      nameEl.textContent = cur.name;
+      priceEl.textContent = inr(cur.price) + ".00";
+      if (window.gsap && !reduced) gsap.fromTo([nameEl, priceEl], { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: "power2.out", clearProps: "all" });
       totalEl.textContent = items.length;
     }
+    // the rail is dragged, not stepped: grab anywhere and slide the garments
+    let dragStart = null, dragged = false, wheelT = 0;
+    rail.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); // stop the browser's native image drag from stealing the gesture
+      dragStart = { x: e.clientX, pos };
+      dragged = false;
+      rail.classList.add("is-dragging");
+      try { rail.setPointerCapture(e.pointerId); } catch (_) {}
+    });
+    rail.addEventListener("pointermove", (e) => {
+      if (!dragStart) return;
+      const dx = e.clientX - dragStart.x;
+      if (Math.abs(dx) > 5) dragged = true;
+      pos = clampPos(dragStart.pos - dx / 165);
+      layout();
+    });
+    const endDrag = () => {
+      if (!dragStart) return;
+      dragStart = null;
+      rail.classList.remove("is-dragging");
+      pos = Math.max(0, Math.min(items.length - 1, Math.round(pos))); // settle on the nearest garment
+      layout();
+      setTimeout(() => { dragged = false; }, 50);
+    };
+    rail.addEventListener("pointerup", endDrag);
+    rail.addEventListener("pointercancel", endDrag);
+    rail.addEventListener("wheel", (e) => {
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : 0;
+      if (!d) return;
+      e.preventDefault();
+      pos = clampPos(pos + d / 240);
+      layout();
+      clearTimeout(wheelT);
+      wheelT = setTimeout(() => { pos = Math.max(0, Math.min(items.length - 1, Math.round(pos))); layout(); }, 200);
+    }, { passive: false });
 
     ["S", "M", "L", "XL"].forEach((s, i) => {
       const b = document.createElement("button");
@@ -561,8 +616,8 @@
       layout();
     }
 
-    $("#rackPrev").addEventListener("click", () => { idx = Math.max(0, idx - 1); layout(); });
-    $("#rackNext").addEventListener("click", () => { idx = Math.min(items.length - 1, idx + 1); layout(); });
+    $("#rackPrev").addEventListener("click", () => { pos = Math.max(0, Math.round(pos) - 1); layout(); });
+    $("#rackNext").addEventListener("click", () => { pos = Math.min(items.length - 1, Math.round(pos) + 1); layout(); });
 
     $("#rackAdd").addEventListener("click", function () {
       const cur = items[idx];
@@ -593,6 +648,7 @@
 
     buildEls();
     layout();
+    updateDetail();
   })();
 
   /* ============================ THE MUSE + STORY ============================ */
