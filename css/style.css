@@ -186,7 +186,7 @@ a{color:inherit;text-decoration:none}
 .look-stage{display:grid;grid-template-columns:1fr 330px;gap:40px;align-items:stretch}
 .look-rail{
   position:relative;display:flex;gap:26px;align-items:flex-end;
-  overflow-x:auto;padding:30px 6px 20px;scroll-snap-type:x mandatory;
+  overflow-x:auto;padding:30px 6px 20px;
   scrollbar-width:none;min-height:560px;
 }
 .look-rail::-webkit-scrollbar{display:none}
@@ -202,7 +202,7 @@ a{color:inherit;text-decoration:none}
   opacity:0;transform:translateY(6px);transition:all .3s;
 }
 .look-card:hover .look-tag{opacity:1;transform:none}
-.look-rail.has-active .look-card{opacity:.45;filter:blur(3px) saturate(.7);transform:scale(.92)}
+.look-rail.has-active .look-card{opacity:.18;filter:blur(3px) saturate(.45);transform:scale(.92)}
 .look-rail.has-active .look-card.is-active{opacity:1;filter:none;transform:scale(1.06)}
 .hotspot{
   position:absolute;width:30px;height:30px;border-radius:50%;
@@ -256,7 +256,8 @@ a{color:inherit;text-decoration:none}
 .silk{overflow:visible}
 .silk-deck{
   display:flex;gap:22px;align-items:stretch;justify-content:flex-start;
-  overflow-x:auto;padding:60px 4vw 40px;scroll-snap-type:x proximity;scrollbar-width:none;
+  overflow-x:auto;padding:60px 4vw 40px;scrollbar-width:none;
+  perspective:1000px;
 }
 .silk-deck::-webkit-scrollbar{display:none}
 .silk-card{
@@ -302,7 +303,12 @@ a{color:inherit;text-decoration:none}
   position:relative;flex:1;height:440px;overflow:hidden;
   display:flex;align-items:flex-end;justify-content:center;
   perspective:1200px;
+  transition:transform .3s ease,opacity .3s ease;touch-action:pan-y;cursor:grab;
 }
+.rack-rail.is-dragging{cursor:grabbing}
+.rack-rail.is-dragging .rack-item{transition:none}
+.rack-rail.swap-out{transform:translateX(-72px);opacity:0}
+.rack-rail.swap-in{transform:translateX(72px);opacity:0}
 .rack-rail::before{content:"";position:absolute;top:150px;left:2%;right:2%;height:5px;border-radius:3px;background:linear-gradient(180deg,#b9b2a2,#8f887a);box-shadow:0 2px 4px rgba(0,0,0,.12)}
 .rack-item{
   position:absolute;bottom:24px;width:190px;transform-origin:50% 0;
@@ -314,7 +320,9 @@ a{color:inherit;text-decoration:none}
 .rack-item:nth-child(2n) img{animation-duration:8.5s;animation-delay:-2s}
 .rack-item:nth-child(3n) img{animation-duration:6.2s;animation-delay:-4s}
 @keyframes hangsway{from{transform:rotate(-1.1deg)}to{transform:rotate(1.1deg)}}
-.rack-item .rack-hangerbar{display:block;margin:0 auto;width:60%}
+.rack-hanger{display:block;width:64%;margin:0 auto -5px;position:relative;z-index:2}
+.rack-hook{display:block;width:3px;height:13px;margin:0 auto;background:#9a917f;border-radius:2px}
+.rack-hangerbar{display:block;height:8px;border-radius:5px;background:linear-gradient(180deg,#d8c39e,#937550);box-shadow:0 2px 4px rgba(34,26,18,.28)}
 .rack-arrow{
   flex:0 0 46px;width:46px;height:46px;border-radius:50%;
   border:1px solid var(--line);background:#fff;display:grid;place-items:center;
@@ -373,7 +381,17 @@ a{color:inherit;text-decoration:none}
 .drape-still--d{grid-area:d;aspect-ratio:3/3.7}
 .drape-film{grid-area:film;position:relative;border-radius:22px;overflow:hidden;box-shadow:var(--shadow-2);aspect-ratio:16/10}
 .drape-film img{width:100%;height:100%;object-fit:cover;animation:kenburns 12s ease-in-out infinite alternate}
+.drape-film video{width:100%;height:100%;object-fit:cover;display:block}
+.drape-film-toggle{
+  position:absolute;right:14px;bottom:14px;z-index:3;width:40px;height:40px;border-radius:50%;
+  background:rgba(20,5,8,.55);color:#fff;display:grid;place-items:center;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+  transition:background .2s,transform .2s;opacity:.92;
 }
+.drape-film-toggle:hover{background:rgba(20,5,8,.8);transform:scale(1.08)}
+.drape-film-toggle .ico-play{display:none}
+.drape-film.is-paused .drape-film-toggle .ico-play{display:block}
+.drape-film.is-paused .drape-film-toggle .ico-pause{display:none}
 .drape-cta{margin:44px auto 0;display:flex;width:max-content}
 
 /* ---------------- The Muse ---------------- */
@@ -382,8 +400,9 @@ a{color:inherit;text-decoration:none}
   padding:40px 0 30px;overflow-x:auto;scrollbar-width:none;perspective:900px;
 }
 .muse-rail::-webkit-scrollbar{display:none}
+.reel-sway{display:block;flex:0 0 auto;transform-style:preserve-3d;will-change:transform}
 .reel-card{
-  position:relative;flex:0 0 205px;aspect-ratio:9/16;border-radius:20px;overflow:hidden;
+  position:relative;width:205px;aspect-ratio:9/16;border-radius:20px;overflow:hidden;display:block;
   transform:rotate(var(--tilt,0deg)) translateY(var(--lift,0));
   transition:transform .55s cubic-bezier(.2,.9,.3,1.15),box-shadow .4s;
   box-shadow:var(--shadow-1);cursor:pointer;background:#000;
@@ -541,6 +560,7 @@ a{color:inherit;text-decoration:none}
 .story{
   position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;gap:26px;
   background:radial-gradient(120% 120% at 50% 40%,#4a0d18 0%,#1c0509 70%);
+  touch-action:none;
 }
 .story[hidden]{display:none}
 .story-frame{
@@ -549,6 +569,7 @@ a{color:inherit;text-decoration:none}
 }
 .story-media{position:absolute;inset:0}
 .story-media img{width:100%;height:100%;object-fit:cover;animation:storyzoom 6s linear forwards}
+.story-media video{width:100%;height:100%;object-fit:cover;display:block}
 @keyframes storyzoom{from{transform:scale(1)}to{transform:scale(1.09)}}
 .story-bars{position:absolute;top:10px;left:12px;right:12px;display:flex;gap:5px;z-index:6}
 .story-bars i{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.32);overflow:hidden;position:relative}
@@ -582,6 +603,8 @@ a{color:inherit;text-decoration:none}
 .story-card-kicker{font-size:10.5px;letter-spacing:.26em;text-transform:uppercase;color:var(--gold-2);font-weight:700}
 .story-card-name{font-size:26px;font-weight:800;margin:4px 0 6px;letter-spacing:-.01em}
 .story-card-desc{font-size:13px;color:rgba(255,255,255,.85);max-width:300px}
+.story-card-note{font-size:10.5px;line-height:1.5;color:rgba(240,199,106,.8);max-width:300px;margin:6px 0 0;letter-spacing:.02em}
+.story-card-row [hidden]{display:none}
 .story-card-row{display:flex;align-items:center;gap:12px;margin-top:14px}
 .story-card-price{font-weight:800;font-size:17px}
 .story-card-row .btn{padding:10px 18px;font-size:13px}
@@ -685,6 +708,7 @@ a{color:inherit;text-decoration:none}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important}
   .rack-marquee-track,.ticker-track{animation:none}
+  .reel-sway{transform:none !important}
   .hero-frame img,.drape-film img,.story-media img,.rack-item img{animation:none}
 }
 

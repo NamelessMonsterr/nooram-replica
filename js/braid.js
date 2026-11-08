@@ -8,11 +8,27 @@ const canvas = document.getElementById("braidCanvas");
 const stage = canvas.parentElement;
 const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+// Detect software GL (SwiftShader/llvmpipe): there, fill rate and fragment
+// shader cost dominate, so drop MSAA, device-pixel-ratio scaling, anisotropy
+// and geometry density. Hardware keeps the full-quality path.
+function softwareGL() {
+  try {
+    const c = document.createElement("canvas");
+    const g = c.getContext("webgl") || c.getContext("experimental-webgl");
+    if (!g) return true;
+    const ext = g.getExtension("WEBGL_debug_renderer_info");
+    const name = ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : "";
+    g.getExtension("WEBGL_lose_context")?.loseContext();
+    return /swiftshader|llvmpipe|software|basic render/i.test(String(name));
+  } catch { return true; }
+}
+const SOFT = softwareGL();
+
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: !SOFT, preserveDrawingBuffer: false, powerPreference: "high-performance" });
+renderer.setPixelRatio(SOFT ? 0.65 : Math.min(devicePixelRatio, innerWidth < 760 ? 1.3 : 2));
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(36, 2, 0.1, 100);
-camera.position.set(0, 0.15, 10.4);
+const camera = new THREE.PerspectiveCamera(33, 2, 0.1, 100);
+camera.position.set(0, 0.1, 9.8);
 
 const key = new THREE.DirectionalLight(0xfff3dd, 1.25);
 key.position.set(3, 5, 6);
@@ -31,23 +47,25 @@ let strands = [];
 let grow = 0;
 const clock = new THREE.Clock();
 let phase = 0;
+let flow = 0; // traveling-wave clock, advanced each frame
+const flowUniform = { value: 0 };
 
-const LEN = 13.2;          // spine length
-const RADIUS = 0.52;       // strand orbit radius around spine
-const WIDTH = 0.98;        // ribbon width (broad fabric band)
-const THICK = 0.045;       // ribbon thickness (thin)
-const TURNS = 2.35;        // braid twists along the spine
-const SAMPLES = 240;
+const LEN = 17.5;          // spine length - long enough to bleed off both edges
+const RADIUS = 0.85;       // strand orbit radius around spine
+const WIDTH = 1.85;        // ribbon width (broad fabric band)
+const THICK = 0.05;        // ribbon thickness (thin)
+const TURNS = 1.45;        // braid twists along the spine - long lazy pitch, not corkscrew
+const SAMPLES = SOFT ? 100 : innerWidth < 760 ? 150 : 240;
 
-// Center of strand i at parameter t in [0,1]
+// Center of strand i at parameter t in [0,1]. The traveling wave itself lives
+// in the vertex shader (uFlow) so the CPU never rebuilds geometry.
 function strandCenter(t, i, n, out) {
   const x = (t - 0.5) * LEN;
   const angle = t * TURNS * Math.PI * 2 + (i * Math.PI * 2) / Math.max(n, 1);
   const r = n === 1 ? 0 : RADIUS;
-  // gentle drape: middle of the braid sags, ends lift and curl down softly
-  const sag = -Math.sin(t * Math.PI) * 0.55;
-  const endCurl = -Math.pow(Math.abs(t - 0.5) * 2, 3) * 0.55;
-  out.set(x, Math.cos(angle) * r + sag + endCurl, Math.sin(angle) * r);
+  // gentle drape: middle of the braid sags, ends lift slightly
+  const sag = -Math.sin(t * Math.PI) * 0.35;
+  out.set(x, Math.cos(angle) * r + sag, Math.sin(angle) * r);
   return angle;
 }
 
@@ -119,10 +137,27 @@ function buildBraid(textures) {
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(1, 1);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    const mat = new THREE.MeshStandardMaterial({
-      map: tex, roughness: 0.62, metalness: 0.1, side: THREE.DoubleSide,
+    tex.anisotropy = SOFT ? 1 : Math.min(4, renderer.capabilities.getMaxAnisotropy());
+    // Lambert: matte-silk diffuse response at a fraction of Standard's
+    // fragment cost - the difference is invisible under this light rig.
+    const mat = new THREE.MeshLambertMaterial({
+      map: tex, side: THREE.DoubleSide, emissive: 0x1a0d08,
     });
+    // broad traveling wave sweeping the full width, like silk pulled through
+    // air - displaced on the GPU so the flow costs no per-frame CPU work
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uFlow = flowUniform;
+      shader.uniforms.uPhase = { value: i * 0.6 };
+      shader.uniforms.uLen = { value: LEN };
+      shader.vertexShader = "uniform float uFlow;\nuniform float uPhase;\nuniform float uLen;\n" + shader.vertexShader.replace(
+        "#include <begin_vertex>",
+        `vec3 transformed = vec3(position);
+         float wt = position.x / uLen + 0.5;
+         float wenv = 0.45 + sin(wt * 3.14159265) * 0.55;
+         transformed.y += sin(wt * 6.2831853 * 1.05 - uFlow * 1.15 + uPhase) * 0.85 * wenv;
+         transformed.z += cos(wt * 6.2831853 * 0.9 - uFlow * 1.15 + uPhase) * 0.55 * wenv;`
+      );
+    };
     const mesh = new THREE.Mesh(geo, mat);
     mesh.scale.setScalar(0.001);
     group.add(mesh);
@@ -147,6 +182,8 @@ resize();
 
 function frame(dt) {
   phase += dt * 0.5;
+  flow += dt; // advances the traveling wave through the ribbons
+  flowUniform.value = flow;
   grow = Math.min(grow + dt * 0.85, 1);
   const ease = 1 - Math.pow(1 - grow, 3);
   strands.forEach((m, i) => {
@@ -154,15 +191,23 @@ function frame(dt) {
     // slow flow of the weave along each band, like fabric being pulled through
     if (m.material.map) m.material.map.offset.x -= dt * 0.045;
   });
-  group.rotation.y = Math.sin(phase * 0.45) * 0.2;
-  group.rotation.x = 0.1 + Math.sin(phase * 0.32) * 0.045;
-  group.rotation.z = Math.sin(phase * 0.26) * 0.05;
-  group.position.y = Math.sin(phase * 0.6) * 0.06;
+  group.rotation.y = Math.sin(phase * 0.45) * 0.14;
+  group.rotation.x = 0.08 + Math.sin(phase * 0.32) * 0.04;
+  group.rotation.z = Math.sin(phase * 0.26) * 0.04;
+  group.position.y = Math.sin(phase * 0.6) * 0.05;
   renderer.render(scene, camera);
 }
 
 if (reduced) {
   frame(0.016);
 } else {
-  renderer.setAnimationLoop(() => frame(Math.min(clock.getDelta(), 0.05)));
+  const loop = () => frame(Math.min(clock.getDelta(), 0.05));
+  let running = false, inView = false;
+  const sync = () => {
+    const should = inView && !document.hidden;
+    if (should && !running) { clock.getDelta(); renderer.setAnimationLoop(loop); running = true; }
+    else if (!should && running) { renderer.setAnimationLoop(null); running = false; }
+  };
+  new IntersectionObserver((es) => { inView = es[0].isIntersecting; sync(); }, { rootMargin: "80px" }).observe(stage);
+  document.addEventListener("visibilitychange", sync);
 }

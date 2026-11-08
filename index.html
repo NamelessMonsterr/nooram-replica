@@ -135,7 +135,11 @@
     <figure class="drape-still drape-still--a"><img src="assets/drape-court.jpg" alt="Three women in silk sarees crossing a temple courtyard" loading="lazy"></figure>
     <figure class="drape-still drape-still--b"><img src="assets/drape-maroon.jpg" alt="Woman in a maroon silk saree by an antique doorway" loading="lazy"></figure>
     <figure class="drape-film" id="drapeFilm">
-      <img src="assets/drape-film.jpg" alt="Film still: woman in a red saree with headphones on an old-city street">
+      <video id="drapeVideo" src="assets/film-drape.mp4" poster="assets/drape-film.jpg" muted loop playsinline preload="metadata" aria-label="Brand film: silk drapes moving through old-city lanes, studios and lamp rooms"></video>
+      <button class="drape-film-toggle" id="drapeToggle" aria-label="Play or pause the film">
+        <svg class="ico-pause" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+        <svg class="ico-play" viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+      </button>
     </figure>
     <figure class="drape-still drape-still--c"><img src="assets/drape-pink.jpg" alt="Three women in pastel pink silk sarees" loading="lazy"></figure>
     <figure class="drape-still drape-still--d"><img src="assets/drape-temple.jpg" alt="Woman in silk beside temple lamps" loading="lazy"></figure>
@@ -269,10 +273,11 @@
       <p class="story-card-kicker" id="storyKicker">Banarasi Katan</p>
       <h3 class="story-card-name" id="storyName">Kaali Banarasi</h3>
       <p class="story-card-desc" id="storyDesc">Night-black silk, a broad gold kadhua border, worn like armour.</p>
+      <p class="story-card-note">Licensed editorial stock footage - a styling mood, not product photography. The weaves themselves hang on the rack.</p>
       <div class="story-card-row">
-        <span class="story-card-price" id="storyPrice">₹36,400</span>
-        <button class="btn btn-red" id="storyAdd">Add to bag</button>
-        <a class="story-more" href="#the-rack" id="storyMore">More drapes</a>
+        <span class="story-card-price" id="storyPrice" hidden></span>
+        <button class="btn btn-red" id="storyAdd" hidden>Add to bag</button>
+        <a class="story-more" href="#the-rack" id="storyMore">Explore the collection</a>
       </div>
     </div>
     <p class="story-hint">Tap sides to skip · hold to pause · swipe down to close</p>
