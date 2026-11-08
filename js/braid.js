@@ -11,8 +11,8 @@ const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(36, 2, 0.1, 100);
-camera.position.set(0, 0.15, 10.4);
+const camera = new THREE.PerspectiveCamera(33, 2, 0.1, 100);
+camera.position.set(0, 0.1, 9.8);
 
 const key = new THREE.DirectionalLight(0xfff3dd, 1.25);
 key.position.set(3, 5, 6);
@@ -32,22 +32,26 @@ let grow = 0;
 const clock = new THREE.Clock();
 let phase = 0;
 
-const LEN = 13.2;          // spine length
-const RADIUS = 0.52;       // strand orbit radius around spine
-const WIDTH = 0.98;        // ribbon width (broad fabric band)
-const THICK = 0.045;       // ribbon thickness (thin)
-const TURNS = 2.35;        // braid twists along the spine
+const LEN = 17.5;          // spine length - long enough to bleed off both edges
+const RADIUS = 0.85;       // strand orbit radius around spine
+const WIDTH = 1.85;        // ribbon width (broad fabric band)
+const THICK = 0.05;        // ribbon thickness (thin)
+const TURNS = 1.45;        // braid twists along the spine - long lazy pitch, not corkscrew
 const SAMPLES = 240;
 
 // Center of strand i at parameter t in [0,1]
+let flow = 0; // traveling-wave clock, advanced each frame
 function strandCenter(t, i, n, out) {
   const x = (t - 0.5) * LEN;
   const angle = t * TURNS * Math.PI * 2 + (i * Math.PI * 2) / Math.max(n, 1);
   const r = n === 1 ? 0 : RADIUS;
-  // gentle drape: middle of the braid sags, ends lift and curl down softly
-  const sag = -Math.sin(t * Math.PI) * 0.55;
-  const endCurl = -Math.pow(Math.abs(t - 0.5) * 2, 3) * 0.55;
-  out.set(x, Math.cos(angle) * r + sag + endCurl, Math.sin(angle) * r);
+  // broad traveling wave sweeping the full width, like silk pulled through air
+  const env = 0.45 + Math.sin(t * Math.PI) * 0.55; // a little calmer at the very ends
+  const waveY = Math.sin(t * Math.PI * 2 * 1.05 - flow * 1.15 + i * 0.6) * 0.85 * env;
+  const waveZ = Math.cos(t * Math.PI * 2 * 0.9 - flow * 1.15 + i * 0.6) * 0.55 * env;
+  // gentle drape: middle of the braid sags, ends lift slightly
+  const sag = -Math.sin(t * Math.PI) * 0.35;
+  out.set(x, Math.cos(angle) * r + sag + waveY, Math.sin(angle) * r + waveZ);
   return angle;
 }
 
@@ -147,17 +151,22 @@ resize();
 
 function frame(dt) {
   phase += dt * 0.5;
+  flow += dt; // advances the traveling wave through the ribbons
   grow = Math.min(grow + dt * 0.85, 1);
   const ease = 1 - Math.pow(1 - grow, 3);
   strands.forEach((m, i) => {
     m.scale.setScalar(Math.max(0.001, Math.min(1, ease * 1.25 - i * 0.14)));
     // slow flow of the weave along each band, like fabric being pulled through
     if (m.material.map) m.material.map.offset.x -= dt * 0.045;
+    // re-shape the ribbon around the moving wave so the whole braid flows
+    const old = m.geometry;
+    m.geometry = ribbonGeometry(i, strands.length);
+    old.dispose();
   });
-  group.rotation.y = Math.sin(phase * 0.45) * 0.2;
-  group.rotation.x = 0.1 + Math.sin(phase * 0.32) * 0.045;
-  group.rotation.z = Math.sin(phase * 0.26) * 0.05;
-  group.position.y = Math.sin(phase * 0.6) * 0.06;
+  group.rotation.y = Math.sin(phase * 0.45) * 0.14;
+  group.rotation.x = 0.08 + Math.sin(phase * 0.32) * 0.04;
+  group.rotation.z = Math.sin(phase * 0.26) * 0.04;
+  group.position.y = Math.sin(phase * 0.6) * 0.05;
   renderer.render(scene, camera);
 }
 
