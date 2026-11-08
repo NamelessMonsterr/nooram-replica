@@ -115,11 +115,11 @@
   ];
 
   const REELS = [
-    { id: "lanes", name: "Old-City Lanes", badge: "REEL 01", dur: "0:38", secs: 6, place: "Old-city lanes", img: "assets/reel-lanes.jpg", kicker: "Kanchi Cotton Silk", prod: "Manjal Kattam", desc: "Turmeric-yellow checks that remember every street they have walked.", price: 18900 },
-    { id: "marina", name: "Marina Morning", badge: "REEL 02", dur: "0:31", secs: 6, place: "Marina, first light", img: "assets/reel-marina.jpg", kicker: "Kora Silk", prod: "Kadal Sunrise", desc: "Sea-breeze yellow with a dawn-gold border, weightless as the hour.", price: 21400 },
-    { id: "studio", name: "Varanasi Red", badge: "REEL 03", dur: "0:24", secs: 6, place: "Studio, Varanasi red", img: "assets/reel-studio.jpg", kicker: "Banarasi Katan", prod: "Kaali Banarasi", desc: "Night-black silk, a broad gold kadhua border, worn like armour.", price: 36400 },
-    { id: "lamp", name: "Lamp Room", badge: "REEL 04", dur: "0:27", secs: 6, place: "Lamp room, Kanchipuram", img: "assets/reel-lamp.jpg", kicker: "Kanjivaram", prod: "Deepam Pachai", desc: "Lamp-green silk that holds a flame's warmth long after dusk.", price: 26800 },
-    { id: "pachai", name: "Pachai Pattu", badge: "REEL 05", dur: "0:33", secs: 6, place: "Jasmine court", img: "assets/reel-pachai.jpg", kicker: "Soft Silk", prod: "Mullai Pachai", desc: "Jasmine green with a pearl-white edge, cool as a shaded court.", price: 19600 },
+    { id: "lanes", name: "Old-City Lanes", badge: "REEL 01", dur: "0:38", secs: 6, place: "Old-city lanes", img: "assets/reel-lanes.jpg", video: "assets/story-lanes.mp4", kicker: "Kanchi Cotton Silk", prod: "Manjal Kattam", desc: "Turmeric-yellow checks that remember every street they have walked.", price: 18900 },
+    { id: "marina", name: "Marina Morning", badge: "REEL 02", dur: "0:31", secs: 6, place: "Marina, first light", img: "assets/reel-marina.jpg", video: "assets/story-marina.mp4", kicker: "Kora Silk", prod: "Kadal Sunrise", desc: "Sea-breeze yellow with a dawn-gold border, weightless as the hour.", price: 21400 },
+    { id: "studio", name: "Varanasi Red", badge: "REEL 03", dur: "0:24", secs: 6, place: "Studio, Varanasi red", img: "assets/reel-studio.jpg", video: "assets/story-studio.mp4", kicker: "Banarasi Katan", prod: "Kaali Banarasi", desc: "Night-black silk, a broad gold kadhua border, worn like armour.", price: 36400 },
+    { id: "lamp", name: "Lamp Room", badge: "REEL 04", dur: "0:27", secs: 6, place: "Lamp room, Kanchipuram", img: "assets/reel-lamp.jpg", video: "assets/story-lamp.mp4", kicker: "Kanjivaram", prod: "Deepam Pachai", desc: "Lamp-green silk that holds a flame's warmth long after dusk.", price: 26800 },
+    { id: "pachai", name: "Pachai Pattu", badge: "REEL 05", dur: "0:33", secs: 6, place: "Jasmine court", img: "assets/reel-pachai.jpg", video: "assets/story-pachai.mp4", kicker: "Soft Silk", prod: "Mullai Pachai", desc: "Jasmine green with a pearl-white edge, cool as a shaded court.", price: 19600 },
   ];
 
   const BRIDAL = [
@@ -160,6 +160,38 @@
     toastEl.classList.add("is-on");
     clearTimeout(toastT);
     toastT = setTimeout(() => toastEl.classList.remove("is-on"), 3200);
+  }
+
+  /* ============================ MOTION HELPERS ============================ */
+  // Gentle ping-pong auto-drift for horizontal rails: the page never sits still.
+  // Pauses briefly on any user interaction, and fully while shouldStop() is true.
+  function drift(el, speed, shouldStop) {
+    if (reduced || !el) return { stop() {}, hold() {} };
+    let dir = 1, pauseUntil = 0, dead = false, raf = 0, pos = el.scrollLeft;
+    const max = () => el.scrollWidth - el.clientWidth;
+    const tick = (ts) => {
+      if (dead) return;
+      // resync if the user or a script moved the rail externally
+      if (Math.abs(el.scrollLeft - pos) > 3) pos = el.scrollLeft;
+      if (ts >= pauseUntil && max() > 4 && !(shouldStop && shouldStop())) {
+        // authoritative float position: avoids integer scrollLeft rounding stalls at the ends
+        pos += speed * dir;
+        if (pos >= max()) { pos = max(); dir = -1; }
+        else if (pos <= 0) { pos = 0; dir = 1; }
+        el.scrollLeft = pos;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    const hold = (ms) => { pauseUntil = performance.now() + (ms || 2800); };
+    el.addEventListener("pointerdown", () => hold(2800));
+    el.addEventListener("wheel", () => hold(2800), { passive: true });
+    el.addEventListener("touchmove", () => hold(2800), { passive: true });
+    el.addEventListener("mouseenter", () => hold(1600));
+    return {
+      stop() { dead = true; cancelAnimationFrame(raf); },
+      hold,
+    };
   }
 
   /* ============================ BAG ============================ */
@@ -267,12 +299,13 @@
     const line = $("#heroLine"), sub = $("#heroSub");
     const states = [
       { line: 'Woven for the <em>Divine.</em>', sub: 'Six Moods. Timeless Drapes. <span>Made to move with you.</span>' },
-      { line: 'Six Moods. <em>Timeless Drapes.</em>', sub: 'Handwoven in Kanchipuram, <span>one saree at a time.</span>' },
+      { line: 'An heirloom from the <em>first fold.</em>', sub: 'Handwoven in Kanchipuram, <span>one saree at a time.</span>' },
+      { line: 'Six Moods. <em>Timeless Drapes.</em>', sub: 'Made to move with you, <span>from first fold to last.</span>' },
     ];
     let i = 0;
     if (reduced) return;
     setInterval(() => {
-      i = (i + 1) % 2;
+      i = (i + 1) % states.length;
       frames.forEach((f, k) => f.classList.toggle("is-on", k === i));
       if (window.gsap) {
         gsap.fromTo([line, sub], { y: 26, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9, stagger: 0.08, ease: "power3.out" });
@@ -313,6 +346,7 @@
       card.addEventListener("click", () => select(card, look, li));
       rail.appendChild(card);
     });
+    const railDrift = drift(rail, 0.5, () => rail.classList.contains("has-active"));
 
     function select(card, look, li) {
       if (active === card) { // tap again to release
@@ -348,6 +382,9 @@
         h.addEventListener("click", (e) => { e.stopPropagation(); tip.classList.toggle("is-on"); });
         card.appendChild(h); card.appendChild(tip);
       });
+      if (window.gsap && !reduced) {
+        gsap.fromTo($$(".hotspot", card), { scale: 0 }, { scale: 1, duration: 0.45, stagger: 0.07, ease: "back.out(2.4)", clearProps: "scale" });
+      }
 
       // panel
       kicker.textContent = `Look 0${li + 1}`;
@@ -364,6 +401,10 @@
         row.addEventListener("mouseleave", () => markPiece(+row.dataset.pi, false));
       });
       totalEl.textContent = inr(look.pieces.reduce((a, p) => a + p.p, 0));
+      if (window.gsap && !reduced) {
+        gsap.fromTo([kicker, panelName], { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: "power2.out", clearProps: "all" });
+        gsap.fromTo($$("li", piecesEl), { y: 14, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: "power2.out", clearProps: "all" });
+      }
     }
 
     function markPiece(pi, on) {
@@ -386,6 +427,7 @@
   /* ============================ PICK A SILK ============================ */
   (function pickASilk() {
     const deck = $("#silkDeck");
+    const canHover = window.matchMedia("(hover:hover)").matches;
     SILKS.forEach((s, i) => {
       const card = document.createElement("article");
       card.className = "silk-card";
@@ -404,7 +446,7 @@
         e.stopPropagation();
         addToBag({ name: s.name + " Silk", price: s.price, img: s.img });
         toast(`<b>${s.name}</b> dropped into your bag.`);
-        if (window.gsap && !reduced) gsap.fromTo(card, { scale: 0.94 }, { scale: 1, duration: 0.5, ease: "elastic.out(1,0.5)" });
+        if (window.gsap && !reduced) gsap.fromTo(card, { scale: 0.92 }, { scale: 1, duration: 0.55, ease: "elastic.out(1,0.45)" });
       });
       const heart = card.querySelector(".silk-heart");
       heart.addEventListener("click", (e) => {
@@ -414,7 +456,30 @@
         syncWish();
       });
       deck.appendChild(card);
+
+      // living card: pointer-follow tilt + press poke (desktop pointers only)
+      if (window.gsap && !reduced) {
+        gsap.set(card, { rotation: s.tilt, transformPerspective: 900 });
+        if (canHover) {
+          const rX = gsap.quickTo(card, "rotationX", { duration: 0.5, ease: "power3.out" });
+          const rY = gsap.quickTo(card, "rotationY", { duration: 0.5, ease: "power3.out" });
+          const rZ = gsap.quickTo(card, "rotation", { duration: 0.6, ease: "power3.out" });
+          const yTo = gsap.quickTo(card, "y", { duration: 0.5, ease: "power3.out" });
+          card.addEventListener("mouseenter", () => { card.style.zIndex = 5; yTo(-14); rZ(0); });
+          card.addEventListener("mousemove", (e) => {
+            const r = card.getBoundingClientRect();
+            rY(((e.clientX - r.left) / r.width - 0.5) * 14);
+            rX(-((e.clientY - r.top) / r.height - 0.5) * 12);
+          });
+          card.addEventListener("mouseleave", () => { card.style.zIndex = ""; rX(0); rY(0); rZ(s.tilt); yTo(0); });
+        }
+        const sTo = gsap.quickTo(card, "scale", { duration: 0.16, ease: "power2.out" });
+        card.addEventListener("pointerdown", () => sTo(0.94));
+        card.addEventListener("pointerup", () => sTo(1));
+        card.addEventListener("pointercancel", () => sTo(1));
+      }
     });
+    drift(deck, 0.55);
   })();
 
   /* ============================ THE RACK ============================ */
@@ -436,35 +501,43 @@
         $$(".chip", filtersEl).forEach((x) => x.classList.toggle("is-on", x === b));
         items = cat === "All pieces" ? RACK.slice() : RACK.filter((r) => r.cat.includes(c));
         idx = Math.min(1, items.length - 1);
-        render();
+        buildEls();
+        layout();
       });
       filtersEl.appendChild(b);
     });
 
-    function render() {
+    let els = [];
+    function buildEls() {
       rail.innerHTML = "";
-      items.forEach((r, i) => {
-        const off = i - idx;
+      els = items.map((r, i) => {
         const d = document.createElement("div");
         d.className = "rack-item";
+        d.innerHTML = `<span class="rack-hanger" aria-hidden="true"><i class="rack-hook"></i><i class="rack-hangerbar"></i></span><img src="${r.img}" alt="${r.name}">`;
+        d.addEventListener("click", () => { idx = i; layout(); });
+        rail.appendChild(d);
+        return d;
+      });
+    }
+    function layout() {
+      items.forEach((r, i) => {
+        const d = els[i];
+        if (!d) return;
+        const off = i - idx;
         const abs = Math.abs(off);
-        const x = off * 165;
-        const scale = Math.max(1 - abs * 0.14, 0.55);
-        const blur = Math.min(abs * 2.6, 9);
-        const rot = off * 2.2;
-        d.style.transform = `translateX(${x}px) translateY(${abs * 10}px) rotate(${rot}deg) scale(${scale})`;
-        d.style.filter = `blur(${blur}px)${r.hue ? ` hue-rotate(${r.hue}deg)` : ""}`;
+        let t = `translateX(${off * 165}px) translateY(${abs * 10}px) rotate(${off * 2.2}deg) scale(${Math.max(1 - abs * 0.14, 0.55)})`;
+        if (!viewFront && i === idx) t += " scaleX(-1)";
+        d.style.transform = t;
+        d.style.filter = `blur(${Math.min(abs * 2.6, 9)}px)${r.hue ? ` hue-rotate(${r.hue}deg)` : ""}`;
         d.style.opacity = abs > 4 ? 0 : 1 - abs * 0.12;
         d.style.zIndex = 100 - abs;
-        d.innerHTML = `<img src="${r.img}" alt="${r.name}" ${abs > 2 ? 'loading="lazy"' : ""}>`;
-        d.addEventListener("click", () => { idx = i; render(); });
-        rail.appendChild(d);
+        d.querySelector("img").loading = abs > 2 ? "lazy" : "eager";
       });
-      if (!viewFront) { const f = rail.children[idx]; if (f && !f.style.transform.includes("scaleX(-1)")) f.style.transform += " scaleX(-1)"; }
       const cur = items[idx];
       if (cur) {
         nameEl.textContent = cur.name;
         priceEl.textContent = inr(cur.price) + ".00";
+        if (window.gsap && !reduced) gsap.fromTo([nameEl, priceEl], { y: 10, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, stagger: 0.05, ease: "power2.out", clearProps: "all" });
       }
       totalEl.textContent = items.length;
     }
@@ -483,18 +556,13 @@
       viewFront = front;
       $("#viewFront").classList.toggle("is-on", front);
       $("#viewBack").classList.toggle("is-on", !front);
-      const focused = rail.children[idx];
-      if (focused) {
-        const t = focused.style.transform.replace(" scaleX(-1)", "");
-        focused.style.transform = front ? t : t + " scaleX(-1)";
-      }
+      layout();
     }
 
-    $("#rackPrev").addEventListener("click", () => { idx = Math.max(0, idx - 1); render(); });
-    $("#rackNext").addEventListener("click", () => { idx = Math.min(items.length - 1, idx + 1); render(); });
+    $("#rackPrev").addEventListener("click", () => { idx = Math.max(0, idx - 1); layout(); });
+    $("#rackNext").addEventListener("click", () => { idx = Math.min(items.length - 1, idx + 1); layout(); });
 
     $("#rackAdd").addEventListener("click", function () {
-      if (!viewFront) { const f = rail.children[idx]; if (f && !f.style.transform.includes("scaleX(-1)")) f.style.transform += " scaleX(-1)"; }
       const cur = items[idx];
       if (!cur) return;
       addToBag({ name: cur.name, price: cur.price, img: cur.img });
@@ -521,13 +589,16 @@
     const words = ['Every thread an offering.', '+', '<b>Woven by hand. Worn in devotion.</b>', '+', 'Ten silks. Ten muses.', '+'];
     $("#rackMarqueeTrack").innerHTML = (words.map((w) => `<span>${w}</span>`).join('<i style="display:none"></i>') + "").repeat(4);
 
-    render();
+    buildEls();
+    layout();
   })();
 
   /* ============================ THE MUSE + STORY ============================ */
   (function muse() {
     const railEl = $("#museRail");
     REELS.forEach((r, i) => {
+      const w = document.createElement("span");
+      w.className = "reel-sway";
       const c = document.createElement("button");
       c.className = "reel-card" + (i === 2 ? " is-centre" : "");
       c.style.setProperty("--tilt", ((i % 2 ? 1 : -1) * (2 + (i % 3))) + "deg");
@@ -539,12 +610,14 @@
         <span class="reel-name">${r.name}</span>
         <span class="reel-play"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></span>`;
       c.addEventListener("click", () => openStory(i));
-      railEl.appendChild(c);
+      w.appendChild(c);
+      railEl.appendChild(w);
     });
+    drift(railEl, 0.4);
   })();
 
   const story = $("#story");
-  let storyIdx = 0, storyTimer = null, storyPaused = false;
+  let storyIdx = 0, storyTimer = null, storyPaused = false, storyBarRaf = 0;
 
   function openStory(i) {
     storyIdx = i;
@@ -556,18 +629,35 @@
     story.hidden = true;
     document.body.style.overflow = "";
     clearTimeout(storyTimer);
+    cancelAnimationFrame(storyBarRaf);
+    if (story._vid) story._vid.pause();
   }
   function renderStory() {
     const r = REELS[storyIdx];
     clearTimeout(storyTimer);
     story.classList.remove("is-paused");
     storyPaused = false;
-    // media
+    // media: a real playing film; when it ends, the next story rolls in
     const media = $("#storyMedia");
-    media.innerHTML = `<img src="${r.img}" alt="${r.name}">`;
-    // bars
+    let vid = null;
+    if (!reduced) {
+      media.innerHTML = `<video src="${r.video}" poster="${r.img}" muted playsinline preload="auto" aria-label="${r.name} film"></video>`;
+      vid = media.querySelector("video");
+      vid.addEventListener("ended", () => stepStory(1));
+      vid.addEventListener("error", () => {
+        media.innerHTML = `<img src="${r.img}" alt="${r.name}">`;
+        vid = null;
+        story._vid = null;
+        storyTimer = setTimeout(() => stepStory(1), r.secs * 1000);
+      });
+      vid.play().catch(() => {});
+    } else {
+      media.innerHTML = `<img src="${r.img}" alt="${r.name}">`;
+    }
+    story._vid = vid;
+    // bars: driven frame-by-frame from the film's own clock
     const bars = $("#storyBars");
-    bars.innerHTML = REELS.map((_, k) => `<i class="${k < storyIdx ? "done" : k === storyIdx ? "live" : ""}" style="--dur:${REELS[storyIdx].secs}s"><b></b></i>`).join("");
+    bars.innerHTML = REELS.map(() => `<i><b></b></i>`).join("");
     // meta + card
     $("#storyPlace").textContent = r.place;
     $("#storyKicker").textContent = r.kicker;
@@ -581,7 +671,18 @@
     const next = REELS[(storyIdx + 1) % REELS.length];
     $("#storyPeekPrev").innerHTML = `<img src="${prev.img}" alt=""><span>${prev.name}</span>`;
     $("#storyPeekNext").innerHTML = `<img src="${next.img}" alt=""><span>${next.name}</span>`;
-    if (!reduced) storyTimer = setTimeout(() => stepStory(1), r.secs * 1000);
+    cancelAnimationFrame(storyBarRaf);
+    const started = performance.now();
+    const barEls = $$("#storyBars i b");
+    const tickBars = () => {
+      if (story.hidden) return;
+      let p = 0;
+      if (vid && vid.duration) p = vid.currentTime / vid.duration;
+      else if (!reduced) p = Math.min((performance.now() - started) / (r.secs * 1000), 1);
+      barEls.forEach((b, k) => { b.style.transform = `scaleX(${k < storyIdx ? 1 : k === storyIdx ? p : 0})`; });
+      storyBarRaf = requestAnimationFrame(tickBars);
+    };
+    tickBars();
   }
   function stepStory(d) {
     storyIdx = (storyIdx + d + REELS.length) % REELS.length;
@@ -598,12 +699,14 @@
     storyPaused = true;
     story.classList.add("is-paused");
     clearTimeout(storyTimer);
+    if (story._vid) story._vid.pause();
   });
   story.addEventListener("pointerup", () => {
     if (!storyPaused) return;
     storyPaused = false;
     story.classList.remove("is-paused");
-    storyTimer = setTimeout(() => stepStory(1), 2500);
+    if (story._vid) { story._vid.play().catch(() => {}); }
+    else if (!reduced) storyTimer = setTimeout(() => stepStory(1), 2500);
   });
   document.addEventListener("keydown", (e) => {
     if (story.hidden) return;
@@ -617,6 +720,28 @@
     toast(`<b>${r.prod}</b> added to your bag.`);
   });
   $("#storyMore").addEventListener("click", (e) => { e.preventDefault(); closeStory(); document.getElementById("the-rack").scrollIntoView({ behavior: reduced ? "auto" : "smooth" }); });
+
+  /* ============================ DRAPE FILM ============================ */
+  (function drapeFilm() {
+    const wrap = $("#drapeFilm"), v = $("#drapeVideo"), btn = $("#drapeToggle");
+    if (!wrap || !v || !btn) return;
+    const setUI = () => wrap.classList.toggle("is-paused", v.paused);
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (v.paused) v.play().catch(() => {}); else v.pause();
+    });
+    v.addEventListener("play", setUI);
+    v.addEventListener("pause", setUI);
+    setUI();
+    if (reduced) return; // stays parked on the poster until the user presses play
+    const io = new IntersectionObserver((es) => {
+      es.forEach((en) => {
+        if (en.isIntersecting) v.play().catch(() => {});
+        else v.pause();
+      });
+    }, { threshold: 0.25 });
+    io.observe(wrap);
+  })();
 
   /* ============================ BRIDAL FAN ============================ */
   (function bridal() {
@@ -778,9 +903,14 @@
   /* ============================ SCROLL MOTION ============================ */
   if (window.gsap && window.ScrollTrigger && !reduced) {
     gsap.registerPlugin(ScrollTrigger);
-    $$(".section-head, .grid-card, .drape-still").forEach((el) => {
+    // hero parallax: the showroom sinks, the line lifts away
+    gsap.to(".hero-media", { yPercent: 16, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "bottom top", scrub: true } });
+    gsap.to(".hero-copy", { yPercent: -46, opacity: 0, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "62% top", scrub: true } });
+    gsap.to(".hero-scrollcue", { opacity: 0, ease: "none", scrollTrigger: { trigger: ".hero", start: "top top", end: "30% top", scrub: true } });
+    // entrances
+    $$(".section-head, .grid-card, .drape-still, .drape-film, .look-panel, .rack-detail, .weave-console, .bridal-foot, .drape-cta, .rack-filters, .rack-count").forEach((el) => {
       gsap.fromTo(el, { y: 34, opacity: 0 }, {
-        y: 0, opacity: 1, duration: 0.9, ease: "power3.out",
+        y: 0, opacity: 1, duration: 0.9, ease: "power3.out", clearProps: "transform,opacity",
         scrollTrigger: { trigger: el, start: "top 88%" },
       });
     });
@@ -788,10 +918,16 @@
       y: 0, opacity: 1, duration: 0.9, stagger: 0.07, ease: "power3.out",
       scrollTrigger: { trigger: ".silk-deck", start: "top 85%" },
     });
-    // muse rail gentle scroll-linked sway
-    gsap.to(".reel-card", {
-      rotate: 0, y: -6, stagger: 0.02, ease: "none",
-      scrollTrigger: { trigger: ".muse-rail", start: "top 90%", end: "bottom 40%", scrub: 1 },
+    gsap.fromTo(".look-card", { y: 50, opacity: 0 }, {
+      y: 0, opacity: 1, duration: 0.8, stagger: 0.06, ease: "power3.out", clearProps: "transform,opacity",
+      scrollTrigger: { trigger: ".look-rail", start: "top 85%" },
+    });
+    // muse reels sway against the scroll, like a rail walked past
+    $$(".reel-sway").forEach((w, i) => {
+      gsap.fromTo(w, { rotation: (i % 2 ? -1 : 1) * 6, y: 26 }, {
+        rotation: (i % 2 ? 1 : -1) * 6, y: -26, ease: "none",
+        scrollTrigger: { trigger: ".muse-rail", start: "top bottom", end: "bottom top", scrub: 1.1 },
+      });
     });
   }
 })();
